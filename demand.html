@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Demand Forecasting Engine</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a25;
+    --border: #2a2a3d;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --card-glow: 0 0 40px rgba(0,229,255,0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 20% 20%, rgba(124,58,237,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(0,229,255,0.05) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 0 24px; }
+
+  /* HEADER */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    background: rgba(10,10,15,0.8);
+    backdrop-filter: blur(20px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-inner { display: flex; align-items: center; gap: 16px; }
+  .logo-mark {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 14px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+  .header-text h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .header-text p { font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .header-badge {
+    margin-left: auto;
+    background: rgba(0,229,255,0.1);
+    border: 1px solid rgba(0,229,255,0.3);
+    color: var(--accent);
+    font-size: 11px; font-family: 'Space Mono', monospace;
+    padding: 4px 10px; border-radius: 20px;
+  }
+
+  /* MAIN SECTIONS */
+  main { padding: 32px 0 80px; }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--card-glow);
+    transition: border-color 0.3s;
+  }
+  .card:hover { border-color: rgba(0,229,255,0.2); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,229,255,0.03);
+  }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 40px; margin-bottom: 12px; }
+  .upload-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* CONTROLS */
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; font-family: 'Space Mono', monospace; letter-spacing: 1px; }
+
+  select, input[type=number], input[type=range] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+  }
+  select:focus, input[type=number]:focus { border-color: var(--accent); }
+
+  input[type=range] {
+    padding: 6px 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .range-value {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+  }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(0,229,255,0.2);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 30px rgba(0,229,255,0.35); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-export {
+    background: var(--accent3);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(16,185,129,0.2);
+  }
+  .btn-export:hover { transform: translateY(-2px); box-shadow: 0 6px 30px rgba(16,185,129,0.35); }
+  .btn-export:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-sm { padding: 7px 14px; font-size: 12px; }
+
+  /* STATUS BAR */
+  .status-bar {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.ready { background: var(--accent3); box-shadow: 0 0 8px var(--accent3); }
+  .status-dot.loading { background: var(--warn); animation: pulse 1s infinite; }
+  .status-dot.error { background: var(--danger); }
+  .status-dot.idle { background: var(--muted); }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* PROGRESS */
+  .progress-wrap { background: var(--border); border-radius: 999px; height: 4px; overflow: hidden; margin-top: 8px; }
+  .progress-bar {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    transition: width 0.4s ease;
+    box-shadow: 0 0 10px rgba(0,229,255,0.5);
+  }
+
+  /* SKU SEARCH & TABLE */
+  .search-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px 10px 40px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    width: 100%;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-wrap { position: relative; }
+  .search-wrap::before { content: '⌕'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 18px; }
+
+  .results-table-wrap {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    max-height: 520px;
+    overflow-y: auto;
+  }
+  .results-table-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+  .results-table-wrap::-webkit-scrollbar-track { background: var(--surface); }
+  .results-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { position: sticky; top: 0; z-index: 10; }
+  th {
+    background: var(--surface2);
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 2px; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 11px 16px;
+    border-bottom: 1px solid rgba(42,42,61,0.5);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+  tr:hover td { background: rgba(0,229,255,0.025); }
+  tr:last-child td { border-bottom: none; }
+
+  .tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .tag-model { background: rgba(124,58,237,0.2); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+  .tag-up { background: rgba(16,185,129,0.15); color: #34d399; }
+  .tag-down { background: rgba(239,68,68,0.15); color: #f87171; }
+  .tag-flat { background: rgba(107,107,138,0.2); color: var(--muted); }
+
+  /* SUMMARY STATS */
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.3s;
+  }
+  .stat-card:hover { border-color: rgba(0,229,255,0.25); }
+  .stat-label { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: 1.5px; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .stat-sub { font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace; margin-top: 4px; }
+
+  /* CHART MINI */
+  .sparkline { width: 100%; height: 60px; }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+  .empty-text { font-size: 14px; font-family: 'Space Mono', monospace; }
+
+  /* ALERTS */
+  .alert {
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    border: 1px solid;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .alert-warn { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: var(--warn); }
+  .alert-info { background: rgba(0,229,255,0.07); border-color: rgba(0,229,255,0.25); color: var(--accent); }
+
+  /* TABS */
+  .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 10px; padding: 4px; border: 1px solid var(--border); margin-bottom: 20px; }
+  .tab {
+    flex: 1; padding: 9px 16px; border-radius: 7px; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: none; background: transparent; color: var(--muted);
+    transition: all 0.2s; font-family: 'Syne', sans-serif;
+  }
+  .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* FORECAST HORIZON */
+  .horizon-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+    color: var(--muted); transition: all 0.2s; font-family: 'Space Mono', monospace;
+  }
+  .chip.selected { background: rgba(0,229,255,0.12); border-color: var(--accent); color: var(--accent); }
+
+  /* ACCURACY METER */
+  .accuracy-bar-wrap { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; margin: 6px 0; }
+  .accuracy-bar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--danger), var(--warn), var(--accent3)); }
+
+  /* TOOLTIP for chart */
+  .chart-container { position: relative; width: 100%; }
+  canvas { display: block; }
+
+  /* DIVIDER */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .gap-12 { gap: 12px; }
+  .gap-16 { gap: 16px; }
+  .gap-20 { gap: 20px; }
+  .mb-8 { margin-bottom: 8px; }
+  .mb-12 { margin-bottom: 12px; }
+  .mb-16 { margin-bottom: 16px; }
+  .mb-20 { margin-bottom: 20px; }
+  .mb-24 { margin-bottom: 24px; }
+  .mb-32 { margin-bottom: 32px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-16 { margin-top: 16px; }
+  .text-accent { color: var(--accent); }
+  .text-sm { font-size: 12px; }
+  .text-muted { color: var(--muted); }
+  .font-mono { font-family: 'Space Mono', monospace; }
+  .fw-700 { font-weight: 700; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 768px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo-mark">DF</div>
+      <div class="header-text">
+        <h1>Demand Forecasting Engine</h1>
+        <p>ML-powered · Multi-SKU · Export Ready</p>
+      </div>
+      <span class="header-badge">v2.0</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+
+    <!-- STEP 1: UPLOAD -->
+    <div class="mb-32">
+      <div class="section-label">01 — Data Import</div>
+      <div class="card">
+        <div class="grid-2 gap-20">
+          <div>
+            <div class="upload-zone" id="uploadZone">
+              <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+              <div class="upload-icon">📊</div>
+              <div class="upload-title">Drop your Excel file here</div>
+              <div class="upload-sub">Supports .xlsx · .xls · .csv</div>
+              <div class="upload-sub mt-8" style="color:var(--accent)">Required columns: Description, ItemCode, Year, Month, Week, Sum of Quantity</div>
+            </div>
+          </div>
+          <div>
+            <div class="status-bar mb-12" id="statusBar">
+              <span class="status-dot idle" id="statusDot"></span>
+              <span id="statusText">Waiting for file upload…</span>
+            </div>
+            <div class="progress-wrap mb-20" id="progressWrap" style="display:none">
+              <div class="progress-bar" id="progressBar" style="width:0%"></div>
+            </div>
+
+            <div class="mb-16">
+              <label>MONTHS LOOK-BACK (EXCLUDES CURRENT MONTH)</label>
+              <div class="flex items-center gap-12">
+                <input type="range" id="monthsBack" min="3" max="36" value="12" oninput="syncRange(this)" />
+                <span class="range-value" id="rangeVal">12</span>
+              </div>
+              <div class="text-sm text-muted font-mono mt-8" id="dateRangeDisplay">—</div>
+            </div>
+
+            <div class="mb-16">
+              <label>FORECAST HORIZON</label>
+              <div class="horizon-chips" id="horizonChips">
+                <div class="chip" data-v="4">4 weeks</div>
+                <div class="chip selected" data-v="8">8 weeks</div>
+                <div class="chip" data-v="12">12 weeks</div>
+                <div class="chip" data-v="16">16 weeks</div>
+              </div>
+            </div>
+
+            <div class="mb-16">
+              <label>ML MODEL</label>
+              <select id="modelSelect">
+                <option value="auto">Auto-Select Best</option>
+                <option value="holt_winters">Holt-Winters (Exponential Smoothing)</option>
+                <option value="linear">Linear Regression Trend</option>
+                <option value="moving_avg">Weighted Moving Average</option>
+                <option value="seasonal">Seasonal Decomposition</option>
+              </select>
+            </div>
+
+            <div class="flex gap-12">
+              <button class="btn btn-primary" id="runBtn" disabled onclick="runForecast()">
+                ▶ Run Forecast
+              </button>
+              <button class="btn btn-export" id="exportBtn" disabled onclick="exportToExcel()">
+                ↓ Export Excel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: RESULTS -->
+    <div id="resultsSection" class="hidden">
+      <div class="section-label">02 — Forecast Results</div>
+
+      <!-- SUMMARY STATS -->
+      <div class="grid-3 gap-20 mb-24" id="statsGrid">
+        <div class="stat-card">
+          <div class="stat-label">TOTAL SKUs PROCESSED</div>
+          <div class="stat-value text-accent" id="statSkus">—</div>
+          <div class="stat-sub" id="statSkusSub">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">TRAINING WEEKS</div>
+          <div class="stat-value" id="statWeeks">—</div>
+          <div class="stat-sub" id="statWeeksSub">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">AVG FORECAST ACCURACY</div>
+          <div class="stat-value" id="statAcc">—</div>
+          <div class="accuracy-bar-wrap"><div class="accuracy-bar" id="statAccBar" style="width:0%"></div></div>
+          <div class="stat-sub" id="statAccSub">MAPE-based estimate</div>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('summary')">Summary Table</button>
+        <button class="tab" onclick="switchTab('detail')">SKU Detail</button>
+        <button class="tab" onclick="switchTab('chart')">Trend Charts</button>
+      </div>
+
+      <!-- SUMMARY TAB -->
+      <div class="tab-panel active" id="tab-summary">
+        <div class="card">
+          <div class="flex items-center justify-between mb-16">
+            <div class="search-wrap" style="flex:1;max-width:400px">
+              <input class="search-box" type="text" id="searchBox" placeholder="Search SKU or Description…" oninput="filterTable()" />
+            </div>
+            <div class="text-sm text-muted font-mono" id="rowCount"></div>
+          </div>
+          <div class="results-table-wrap">
+            <table id="summaryTable">
+              <thead>
+                <tr>
+                  <th>ITEM CODE</th>
+                  <th>DESCRIPTION</th>
+                  <th>MODEL</th>
+                  <th>AVG WEEKLY</th>
+                  <th>TOTAL HIST QTY</th>
+                  <th>WK 1</th>
+                  <th>WK 2</th>
+                  <th>WK 3</th>
+                  <th>WK 4</th>
+                  <th>NEXT 4W TOTAL</th>
+                  <th>TREND</th>
+                  <th>MAPE%</th>
+                </tr>
+              </thead>
+              <tbody id="summaryBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state hidden" id="emptyState">
+            <div class="empty-icon">🔍</div>
+            <div class="empty-text">No SKUs match your search</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DETAIL TAB -->
+      <div class="tab-panel" id="tab-detail">
+        <div class="card mb-16">
+          <label>SELECT SKU</label>
+          <select id="skuSelect" onchange="renderDetail()">
+            <option value="">— Choose a SKU —</option>
+          </select>
+        </div>
+        <div id="detailContent">
+          <div class="empty-state">
+            <div class="empty-icon">📦</div>
+            <div class="empty-text">Select a SKU above to view its full forecast detail</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART TAB -->
+      <div class="tab-panel" id="tab-chart">
+        <div class="card mb-16">
+          <div class="flex items-center justify-between mb-16">
+            <div>
+              <label>SELECT SKU FOR CHART</label>
+              <select id="chartSkuSelect" onchange="renderChart()" style="width:320px">
+                <option value="">— Choose a SKU —</option>
+              </select>
+            </div>
+          </div>
+          <div id="chartContainer" style="height:320px;position:relative">
+            <canvas id="forecastChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ─────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────
+let rawData = [];
+let skuMap = {};        // itemCode -> [{year,month,week,qty,description}]
+let forecastResults = []; // per SKU forecast
+let forecastHorizon = 8;
+let chartInstance = null;
+let allRows = [];       // for table filtering
+
+// ─────────────────────────────────────────────────
+// UPLOAD
+// ─────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+});
+
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) { document.getElementById('fileInput').files = e.dataTransfer.files; processFile(file); }
+});
+
+function setStatus(text, state='idle') {
+  document.getElementById('statusText').textContent = text;
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + state;
+}
+
+function syncRange(el) {
+  document.getElementById('rangeVal').textContent = el.value;
+  updateDateRangeDisplay();
+}
+
+function updateDateRangeDisplay() {
+  const months = parseInt(document.getElementById('monthsBack').value);
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), 0); // last day of last month
+  const start = new Date(cutoff.getFullYear(), cutoff.getMonth() - months + 1, 1);
+  document.getElementById('dateRangeDisplay').textContent =
+    `Using: ${fmt(start)} → ${fmt(cutoff)} (${months} months, excl. current)`;
+}
+
+function fmt(d) {
+  return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+}
+
+// Horizon chips
+document.querySelectorAll('.chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(x => x.classList.remove('selected'));
+    c.classList.add('selected');
+    forecastHorizon = parseInt(c.dataset.v);
+  });
+});
+
+updateDateRangeDisplay();
+document.getElementById('monthsBack').addEventListener('input', updateDateRangeDisplay);
+
+// ─────────────────────────────────────────────────
+// FILE PROCESSING
+// ─────────────────────────────────────────────────
+function processFile(file) {
+  setStatus('Reading file…', 'loading');
+  showProgress(10);
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: 0 });
+      showProgress(40);
+
+      if (!json.length) throw new Error('File is empty or unreadable');
+
+      // Normalize headers
+      rawData = json.map(row => {
+        const r = {};
+        Object.keys(row).forEach(k => { r[k.trim()] = row[k]; });
+        return r;
+      });
+
+      // Detect header mapping (flexible)
+      const sample = rawData[0];
+      const keys = Object.keys(sample);
+      const find = (candidates) => keys.find(k => candidates.some(c => k.toLowerCase().includes(c.toLowerCase()))) || '';
+      const descKey = find(['description','desc','name','product']);
+      const codeKey = find(['itemcode','item code','code','sku','id','item']);
+      const yearKey = find(['year','yr']);
+      const monthKey = find(['month','mon','mth']);
+      const weekKey = find(['week','wk','wee']);
+      const qtyKey = find(['sum of quantity','quantity','qty','sum_qty','sumqty','sales','demand']);
+
+      if (!codeKey || !yearKey || !monthKey || !weekKey || !qtyKey) {
+        throw new Error(`Could not detect required columns. Found: ${keys.join(', ')}`);
+      }
+
+      showProgress(60);
+
+      // Build SKU map
+      skuMap = {};
+      rawData.forEach(row => {
+        const code = String(row[codeKey] || '').trim();
+        if (!code) return;
+        if (!skuMap[code]) skuMap[code] = { description: String(row[descKey] || code), records: [] };
+        skuMap[code].records.push({
+          year: parseInt(row[yearKey]) || 0,
+          month: parseInt(row[monthKey]) || 0,
+          week: parseInt(row[weekKey]) || 0,
+          qty: parseFloat(row[qtyKey]) || 0
+        });
+      });
+
+      showProgress(80);
+      const skuCount = Object.keys(skuMap).length;
+      setStatus(`✓ Loaded ${rawData.length} rows · ${skuCount} SKUs detected`, 'ready');
+      showProgress(100);
+      setTimeout(() => document.getElementById('progressWrap').style.display='none', 800);
+
+      document.getElementById('runBtn').disabled = false;
+      zone.style.borderColor = 'var(--accent3)';
+      zone.querySelector('.upload-icon').textContent = '✅';
+      zone.querySelector('.upload-title').textContent = `${file.name}`;
+      zone.querySelector('.upload-sub').textContent = `${rawData.length} rows · ${skuCount} SKUs`;
+
+    } catch(err) {
+      setStatus('Error: ' + err.message, 'error');
+      showProgress(0);
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function showProgress(pct) {
+  const wrap = document.getElementById('progressWrap');
+  wrap.style.display = 'block';
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+// ─────────────────────────────────────────────────
+// DATE CUTOFF LOGIC
+// ─────────────────────────────────────────────────
+function getCutoffRange() {
+  const months = parseInt(document.getElementById('monthsBack').value);
+  const now = new Date();
+  // Cutoff: last day of last month
+  const cutoffYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const cutoffMonth = now.getMonth() === 0 ? 12 : now.getMonth(); // 1-based, last complete month
+
+  // Start: go back N months from cutoffMonth
+  let startYear = cutoffYear;
+  let startMonth = cutoffMonth - months + 1;
+  while (startMonth <= 0) { startMonth += 12; startYear--; }
+
+  return { startYear, startMonth, endYear: cutoffYear, endMonth: cutoffMonth };
+}
+
+function isInRange(year, month, range) {
+  const ym = year * 100 + month;
+  const start = range.startYear * 100 + range.startMonth;
+  const end = range.endYear * 100 + range.endMonth;
+  return ym >= start && ym <= end;
+}
+
+// ─────────────────────────────────────────────────
+// ML FORECASTING ENGINE
+// ─────────────────────────────────────────────────
+function runForecast() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Forecasting…';
+  setStatus('Running ML forecast…', 'loading');
+  showProgress(0);
+
+  setTimeout(() => {
+    try {
+      const range = getCutoffRange();
+      const model = document.getElementById('modelSelect').value;
+      const skuKeys = Object.keys(skuMap);
+      forecastResults = [];
+
+      skuKeys.forEach((code, i) => {
+        showProgress(Math.round((i / skuKeys.length) * 90));
+        const result = forecastSKU(code, skuMap[code], range, model);
+        forecastResults.push(result);
+      });
+
+      showProgress(100);
+      setStatus(`✓ Forecast complete · ${forecastResults.length} SKUs`, 'ready');
+      btn.textContent = '▶ Run Forecast';
+      btn.disabled = false;
+      document.getElementById('exportBtn').disabled = false;
+
+      renderResults();
+      document.getElementById('resultsSection').classList.remove('hidden');
+      document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch(err) {
+      setStatus('Forecast error: ' + err.message, 'error');
+      btn.textContent = '▶ Run Forecast';
+      btn.disabled = false;
+    }
+  }, 80);
+}
+
+function forecastSKU(code, skuData, range, modelChoice) {
+  const { description, records } = skuData;
+
+  // Filter to date range
+  const filtered = records.filter(r => isInRange(r.year, r.month, range));
+
+  // Build weekly time series (sorted)
+  const weeklyMap = {};
+  filtered.forEach(r => {
+    const key = `${r.year}-${String(r.month).padStart(2,'0')}-${r.week}`;
+    weeklyMap[key] = (weeklyMap[key] || 0) + r.qty;
+  });
+
+  const sorted = Object.entries(weeklyMap).sort(([a],[b]) => a.localeCompare(b));
+  const series = sorted.map(([,v]) => v);
+
+  if (series.length < 2) {
+    // Not enough data: return zeros
+    const fc = Array(forecastHorizon).fill(0);
+    return { code, description, model: 'N/A', series: [], forecast: fc, mape: null, trend: 'flat', avgWeekly: 0 };
+  }
+
+  // Choose model
+  let usedModel = modelChoice;
+  if (modelChoice === 'auto') usedModel = autoSelectModel(series);
+
+  let forecast = [];
+  let mape = null;
+
+  if (usedModel === 'holt_winters') {
+    ({ forecast, mape } = holtWinters(series, forecastHorizon));
+  } else if (usedModel === 'linear') {
+    ({ forecast, mape } = linearTrend(series, forecastHorizon));
+  } else if (usedModel === 'moving_avg') {
+    ({ forecast, mape } = weightedMovingAvg(series, forecastHorizon));
+  } else if (usedModel === 'seasonal') {
+    ({ forecast, mape } = seasonalDecomp(series, forecastHorizon));
+  }
+
+  // Ensure non-negative
+  forecast = forecast.map(v => Math.max(0, Math.round(v * 10) / 10));
+
+  const avgWeekly = series.reduce((a,b) => a+b, 0) / series.length;
+  const recentAvg = series.slice(-4).reduce((a,b)=>a+b,0)/Math.min(4,series.length);
+  const fcAvg = forecast.slice(0,4).reduce((a,b)=>a+b,0)/4;
+  const trend = fcAvg > recentAvg * 1.05 ? 'up' : fcAvg < recentAvg * 0.95 ? 'down' : 'flat';
+
+  return {
+    code, description,
+    model: usedModel,
+    series,
+    forecast,
+    mape,
+    trend,
+    avgWeekly: Math.round(avgWeekly * 10) / 10,
+    totalHist: series.reduce((a,b)=>a+b,0)
+  };
+}
+
+function autoSelectModel(series) {
+  if (series.length < 4) return 'moving_avg';
+  // Check seasonality potential
+  if (series.length >= 12) {
+    const cv = stdDev(series) / (mean(series) || 1);
+    if (cv > 0.5) return 'holt_winters';
+    return 'seasonal';
+  }
+  return series.length >= 6 ? 'holt_winters' : 'moving_avg';
+}
+
+// ── HOLT-WINTERS (additive, no seasonality for simplicity) ──
+function holtWinters(data, h) {
+  const alpha = 0.3, beta = 0.1;
+  let level = data[0];
+  let trend = data.length > 1 ? data[1] - data[0] : 0;
+  const fitted = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const prevL = level, prevT = trend;
+    level = alpha * data[i] + (1 - alpha) * (prevL + prevT);
+    trend = beta * (level - prevL) + (1 - beta) * prevT;
+    fitted.push(prevL + prevT);
+  }
+
+  const forecast = [];
+  for (let i = 1; i <= h; i++) forecast.push(level + i * trend);
+
+  const mape = calcMAPE(data.slice(1), fitted);
+  return { forecast, mape };
+}
+
+// ── LINEAR REGRESSION ──
+function linearTrend(data, h) {
+  const n = data.length;
+  const xs = Array.from({length:n},(_,i)=>i+1);
+  const mx = mean(xs), my = mean(data);
+  const num = xs.reduce((s,x,i) => s + (x-mx)*(data[i]-my), 0);
+  const den = xs.reduce((s,x) => s + (x-mx)**2, 0);
+  const b = den ? num/den : 0;
+  const a = my - b * mx;
+
+  const fitted = xs.map(x => a + b * x);
+  const forecast = Array.from({length:h},(_,i) => a + b*(n+i+1));
+  const mape = calcMAPE(data, fitted);
+  return { forecast, mape };
+}
+
+// ── WEIGHTED MOVING AVERAGE ──
+function weightedMovingAvg(data, h) {
+  const window = Math.min(6, data.length);
+  const weights = Array.from({length:window},(_,i)=>i+1);
+  const wSum = weights.reduce((a,b)=>a+b,0);
+
+  const fitted = [];
+  for (let i = window; i < data.length; i++) {
+    const slice = data.slice(i-window, i);
+    const v = slice.reduce((s,d,j) => s + d*weights[j], 0) / wSum;
+    fitted.push(v);
+  }
+
+  let buf = data.slice(-window);
+  const forecast = [];
+  for (let i = 0; i < h; i++) {
+    const v = buf.slice(-window).reduce((s,d,j) => s + d*weights[j], 0) / wSum;
+    forecast.push(v);
+    buf.push(v);
+  }
+
+  const mape = calcMAPE(data.slice(window), fitted);
+  return { forecast, mape };
+}
+
+// ── SEASONAL DECOMPOSITION (period=4 weeks) ──
+function seasonalDecomp(data, h) {
+  const period = 4;
+  if (data.length < period * 2) return weightedMovingAvg(data, h);
+
+  // Moving average trend
+  const trend = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < Math.floor(period/2) || i >= data.length - Math.floor(period/2)) {
+      trend.push(null);
+    } else {
+      const slice = data.slice(i - Math.floor(period/2), i + Math.ceil(period/2));
+      trend.push(mean(slice));
+    }
+  }
+
+  // Seasonal indices
+  const detrended = data.map((d,i) => trend[i] ? d / (trend[i] || 1) : null).filter(v=>v!==null);
+  const seasonal = Array(period).fill(0).map((_,p) => {
+    const vals = detrended.filter((_,i) => i % period === p);
+    return vals.length ? mean(vals) : 1;
+  });
+
+  // Project trend (linear)
+  const trendData = trend.filter(v=>v!==null);
+  const { forecast: trendFc } = linearTrend(trendData, h);
+  const forecast = trendFc.map((t,i) => t * seasonal[i % period]);
+
+  // Fitted
+  const fitted = data.slice(Math.floor(period/2), data.length-Math.floor(period/2))
+    .map((d,i) => (trend[i+Math.floor(period/2)] || mean(data)) * seasonal[i%period]);
+
+  const mape = calcMAPE(data.slice(Math.floor(period/2), data.length-Math.floor(period/2)), fitted);
+  return { forecast, mape };
+}
+
+// ── MATH HELPERS ──
+function mean(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function stdDev(arr) {
+  const m = mean(arr);
+  return Math.sqrt(arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length);
+}
+function calcMAPE(actual, predicted) {
+  const pairs = actual.map((a,i)=>[a,predicted[i]]).filter(([a,p])=>a>0&&p!=null);
+  if (!pairs.length) return null;
+  return pairs.reduce((s,[a,p])=>s+Math.abs(a-p)/a,0)/pairs.length*100;
+}
+
+// ─────────────────────────────────────────────────
+// RENDER RESULTS
+// ─────────────────────────────────────────────────
+function renderResults() {
+  // Stats
+  document.getElementById('statSkus').textContent = forecastResults.length;
+  document.getElementById('statSkusSub').textContent = `processed successfully`;
+
+  const totalWeeks = forecastResults[0]?.series.length || 0;
+  document.getElementById('statWeeks').textContent = totalWeeks;
+  document.getElementById('statWeeksSub').textContent = `weeks of training data`;
+
+  const validMapes = forecastResults.filter(r=>r.mape!=null).map(r=>r.mape);
+  if (validMapes.length) {
+    const avgMape = validMapes.reduce((a,b)=>a+b,0)/validMapes.length;
+    const acc = Math.max(0, 100 - avgMape);
+    document.getElementById('statAcc').textContent = acc.toFixed(1) + '%';
+    document.getElementById('statAccBar').style.width = acc + '%';
+  }
+
+  // Populate summary table
+  allRows = forecastResults;
+  renderTable(allRows);
+
+  // Populate SKU selects
+  const selects = ['skuSelect','chartSkuSelect'];
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">— Choose a SKU —</option>';
+    forecastResults.forEach(r => {
+      const o = document.createElement('option');
+      o.value = r.code;
+      o.textContent = `${r.code} — ${r.description.substring(0,40)}`;
+      sel.appendChild(o);
+    });
+  });
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('summaryBody');
+  tbody.innerHTML = '';
+  document.getElementById('rowCount').textContent = `${rows.length} SKUs`;
+  document.getElementById('emptyState').classList.toggle('hidden', rows.length > 0);
+
+  rows.forEach(r => {
+    const fc = r.forecast;
+    const next4 = fc.slice(0,4).reduce((a,b)=>a+b,0);
+    const trendTag = r.trend === 'up' ? `<span class="tag tag-up">↑ UP</span>` :
+                     r.trend === 'down' ? `<span class="tag tag-down">↓ DOWN</span>` :
+                     `<span class="tag tag-flat">→ FLAT</span>`;
+    const mapeStr = r.mape != null ? r.mape.toFixed(1) + '%' : 'N/A';
+    const modelLabel = {holt_winters:'H-W',linear:'LR',moving_avg:'WMA',seasonal:'SD','N/A':'N/A'}[r.model]||r.model;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="font-mono" style="color:var(--accent)">${esc(r.code)}</td>
+      <td>${esc(r.description.substring(0,35))}${r.description.length>35?'…':''}</td>
+      <td><span class="tag tag-model">${modelLabel}</span></td>
+      <td>${r.avgWeekly}</td>
+      <td>${Math.round(r.totalHist||0)}</td>
+      <td>${fc[0]||0}</td>
+      <td>${fc[1]||0}</td>
+      <td>${fc[2]||0}</td>
+      <td>${fc[3]||0}</td>
+      <td style="font-weight:700;color:var(--accent)">${next4.toFixed(1)}</td>
+      <td>${trendTag}</td>
+      <td style="color:${r.mape<15?'var(--accent3)':r.mape<30?'var(--warn)':'var(--danger)'}">${mapeStr}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function filterTable() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  const filtered = q ? allRows.filter(r =>
+    r.code.toLowerCase().includes(q) || r.description.toLowerCase().includes(q)
+  ) : allRows;
+  renderTable(filtered);
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ─────────────────────────────────────────────────
+// SKU DETAIL
+// ─────────────────────────────────────────────────
+function renderDetail() {
+  const code = document.getElementById('skuSelect').value;
+  const container = document.getElementById('detailContent');
+  if (!code) { container.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Select a SKU above</div></div>`; return; }
+
+  const r = forecastResults.find(x => x.code === code);
+  if (!r) return;
+
+  const fcRows = r.forecast.map((v,i) => `
+    <tr>
+      <td>Week ${i+1}</td>
+      <td style="color:var(--accent);font-weight:700">${v}</td>
+      <td>Forecast</td>
+    </tr>
+  `).join('');
+
+  const histSlice = r.series.slice(-8);
+  const histRows = histSlice.map((v,i) => `
+    <tr>
+      <td>Hist W-${histSlice.length-i}</td>
+      <td>${v}</td>
+      <td>Historical</td>
+    </tr>
+  `).join('');
+
+  container.innerHTML = `
+    <div class="grid-2 gap-20">
+      <div class="card">
+        <div class="section-label mb-12">SKU INFO</div>
+        <table>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px;width:140px">Item Code</td><td style="padding:8px 16px;color:var(--accent)">${esc(r.code)}</td></tr>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px">Description</td><td style="padding:8px 16px">${esc(r.description)}</td></tr>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px">Model Used</td><td style="padding:8px 16px"><span class="tag tag-model">${r.model}</span></td></tr>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px">Avg Weekly</td><td style="padding:8px 16px">${r.avgWeekly}</td></tr>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px">MAPE</td><td style="padding:8px 16px">${r.mape!=null?r.mape.toFixed(2)+'%':'N/A'}</td></tr>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px">Trend</td><td style="padding:8px 16px">${r.trend}</td></tr>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px">History Weeks</td><td style="padding:8px 16px">${r.series.length}</td></tr>
+          <tr><td class="text-muted font-mono" style="padding:8px 16px">Forecast Weeks</td><td style="padding:8px 16px">${forecastHorizon}</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="section-label mb-12">FORECAST + RECENT HISTORY</div>
+        <div class="results-table-wrap" style="max-height:280px">
+          <table>
+            <thead><tr><th>PERIOD</th><th>QTY</th><th>TYPE</th></tr></thead>
+            <tbody>${fcRows}${histRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────
+// CHART
+// ─────────────────────────────────────────────────
+function renderChart() {
+  const code = document.getElementById('chartSkuSelect').value;
+  if (!code) return;
+  const r = forecastResults.find(x => x.code === code);
+  if (!r) return;
+
+  const canvas = document.getElementById('forecastChart');
+  const ctx = canvas.getContext('2d');
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  const histShow = r.series.slice(-16);
+  const histLabels = histShow.map((_,i) => `H-${histShow.length-i}`);
+  const fcLabels = r.forecast.map((_,i) => `F+${i+1}`);
+  const allLabels = [...histLabels, ...fcLabels];
+
+  const histDataset = { label: 'Historical', data: [...histShow, ...Array(r.forecast.length).fill(null)], borderColor: '#00e5ff', backgroundColor: 'rgba(0,229,255,0.1)', tension: 0.4, pointRadius: 3, fill: true };
+  const fcDataset = { label: 'Forecast', data: [...Array(histShow.length-1).fill(null), histShow[histShow.length-1], ...r.forecast], borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.15)', tension: 0.4, pointRadius: 3, borderDash: [5,4], fill: true };
+
+  // Simple canvas chart without Chart.js (since it's not available via CDN in this context)
+  drawManualChart(canvas, histShow, r.forecast, r.description);
+}
+
+function drawManualChart(canvas, hist, fc, title) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 300 * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = '300px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const W = rect.width, H = 300;
+  const pad = { top: 30, right: 20, bottom: 40, left: 60 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const histShow = hist.slice(-16);
+  const all = [...histShow, ...fc];
+  const maxV = Math.max(...all, 1) * 1.15;
+  const minV = 0;
+
+  const totalPoints = all.length;
+  const xStep = cw / (totalPoints - 1);
+
+  const toX = i => pad.left + i * xStep;
+  const toY = v => pad.top + ch - ((v - minV) / (maxV - minV)) * ch;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(42,42,61,0.8)';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 5; g++) {
+    const y = pad.top + (ch / 5) * g;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+    ctx.fillStyle = '#6b6b8a';
+    ctx.font = '10px Space Mono, monospace';
+    ctx.textAlign = 'right';
+    const val = maxV - (maxV / 5) * g;
+    ctx.fillText(Math.round(val), pad.left - 8, y + 4);
+  }
+
+  // Draw historical area
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(histShow[0]));
+  for (let i = 1; i < histShow.length; i++) ctx.lineTo(toX(i), toY(histShow[i]));
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Area fill hist
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(0));
+  for (let i = 0; i < histShow.length; i++) ctx.lineTo(toX(i), toY(histShow[i]));
+  ctx.lineTo(toX(histShow.length-1), toY(0));
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+  grad.addColorStop(0, 'rgba(0,229,255,0.2)');
+  grad.addColorStop(1, 'rgba(0,229,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Forecast line
+  const fcStart = histShow.length - 1;
+  ctx.beginPath();
+  ctx.moveTo(toX(fcStart), toY(histShow[histShow.length-1]));
+  for (let i = 0; i < fc.length; i++) ctx.lineTo(toX(fcStart + 1 + i), toY(fc[i]));
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([6, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Forecast area
+  ctx.beginPath();
+  ctx.moveTo(toX(fcStart), toY(0));
+  ctx.lineTo(toX(fcStart), toY(histShow[histShow.length-1]));
+  for (let i = 0; i < fc.length; i++) ctx.lineTo(toX(fcStart + 1 + i), toY(fc[i]));
+  ctx.lineTo(toX(fcStart + fc.length), toY(0));
+  ctx.closePath();
+  const grad2 = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+  grad2.addColorStop(0, 'rgba(124,58,237,0.2)');
+  grad2.addColorStop(1, 'rgba(124,58,237,0)');
+  ctx.fillStyle = grad2;
+  ctx.fill();
+
+  // Divider
+  ctx.beginPath();
+  ctx.moveTo(toX(fcStart), pad.top);
+  ctx.lineTo(toX(fcStart), pad.top + ch);
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Labels
+  ctx.fillStyle = '#6b6b8a';
+  ctx.font = '9px Space Mono, monospace';
+  ctx.textAlign = 'center';
+  // Show every 4th label
+  all.forEach((_, i) => {
+    if (i % 4 === 0) {
+      const lbl = i < histShow.length ? `H-${histShow.length-i}` : `F+${i-histShow.length+1}`;
+      ctx.fillStyle = i < histShow.length ? '#6b6b8a' : '#a78bfa';
+      ctx.fillText(lbl, toX(i), pad.top + ch + 20);
+    }
+  });
+
+  // Legend
+  ctx.font = '11px Syne, sans-serif';
+  ctx.fillStyle = '#00e5ff'; ctx.fillRect(pad.left, 8, 14, 3);
+  ctx.fillStyle = '#e8e8f0'; ctx.fillText('Historical', pad.left + 20, 14);
+  ctx.fillStyle = '#a78bfa'; ctx.fillRect(pad.left + 100, 8, 14, 3);
+  ctx.fillStyle = '#e8e8f0'; ctx.fillText('Forecast', pad.left + 120, 14);
+}
+
+// ─────────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const panels = ['summary','detail','chart'];
+    t.classList.toggle('active', panels[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'chart') setTimeout(() => renderChart(), 50);
+}
+
+// ─────────────────────────────────────────────────
+// EXPORT TO EXCEL
+// ─────────────────────────────────────────────────
+function exportToExcel() {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Summary
+  const summaryData = [
+    ['Item Code','Description','Model','Avg Weekly Qty','Total Historical Qty','Trend','MAPE %',
+     ...Array.from({length:forecastHorizon},(_,i)=>`Forecast Wk ${i+1}`),
+     'Next 4 Wk Total',`Total ${forecastHorizon} Wk Forecast`]
+  ];
+
+  forecastResults.forEach(r => {
+    const row = [
+      r.code,
+      r.description,
+      r.model,
+      r.avgWeekly,
+      Math.round(r.totalHist||0),
+      r.trend,
+      r.mape != null ? +r.mape.toFixed(2) : 'N/A',
+      ...r.forecast,
+      +(r.forecast.slice(0,4).reduce((a,b)=>a+b,0).toFixed(1)),
+      +(r.forecast.reduce((a,b)=>a+b,0).toFixed(1))
+    ];
+    summaryData.push(row);
+  });
+
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+  wsSummary['!cols'] = [12,35,18,15,18,10,10,...Array(forecastHorizon+2).fill(14)].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Forecast Summary');
+
+  // Sheet 2: Detailed weekly forecast
+  const detailData = [['Item Code','Description','Forecast Week','Forecast Qty']];
+  forecastResults.forEach(r => {
+    r.forecast.forEach((v, i) => {
+      detailData.push([r.code, r.description, i+1, v]);
+    });
+  });
+  const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
+  wsDetail['!cols'] = [{wch:15},{wch:40},{wch:15},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Weekly Detail');
+
+  // Sheet 3: Historical data used
+  const histData = [['Item Code','Description','Historical Wk (from latest)','Qty']];
+  forecastResults.forEach(r => {
+    r.series.forEach((v, i) => {
+      histData.push([r.code, r.description, `W-${r.series.length-i}`, v]);
+    });
+  });
+  const wsHist = XLSX.utils.aoa_to_sheet(histData);
+  wsHist['!cols'] = [{wch:15},{wch:40},{wch:22},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsHist, 'Historical Data');
+
+  // Sheet 4: Model Info
+  const infoData = [
+    ['Export Date', new Date().toLocaleString()],
+    ['Months Look-back', document.getElementById('monthsBack').value],
+    ['Forecast Horizon (weeks)', forecastHorizon],
+    ['Model Selection', document.getElementById('modelSelect').options[document.getElementById('modelSelect').selectedIndex].text],
+    ['Total SKUs', forecastResults.length],
+    [''],
+    ['Model Codes',''],
+    ['H-W','Holt-Winters Exponential Smoothing'],
+    ['LR','Linear Regression Trend'],
+    ['WMA','Weighted Moving Average'],
+    ['SD','Seasonal Decomposition'],
+  ];
+  const wsInfo = XLSX.utils.aoa_to_sheet(infoData);
+  wsInfo['!cols'] = [{wch:30},{wch:45}];
+  XLSX.utils.book_append_sheet(wb, wsInfo, 'Run Info');
+
+  const now = new Date();
+  const fname = `DemandForecast_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+</script>
+</body>
+</html>
